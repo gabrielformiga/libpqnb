@@ -30,7 +30,7 @@ PQNB_pool_free(struct PQNB_pool *pool);
 /**
  * returns 0 on success, -1 on error
  */
-int32_t
+int
 PQNB_pool_run(struct PQNB_pool *pool);
 /*
  * used for querying pool info
@@ -58,7 +58,7 @@ typedef void (*PQNB_query_callback)(PGresult *pg_result, void *user_data);
 /**
  * returns 0 on success, -1 on error
  */
-int32_t
+int
 PQNB_pool_query(struct PQNB_pool *pool, const char *query,
                 PQNB_query_callback query_callback,
                 const void *user_data);

@@ -9,7 +9,7 @@ make libpqnb.so
 Initialize the connection pool:  
 ```c
 struct PQNB_pool *pool;  
-char *conninfo = "postgresql:///yourdbname?host=/var/run/postgresql";  
+const char conninfo[] = "postgresql:///yourdbname?host=/var/run/postgresql";  
 uint16_t num_connections = 32;  
 pool = PQNB_pool_init(conninfo, num_connections);  
 ```  

@@ -1,5 +1,6 @@
 .clangd
 *.o
+sample/*.o
 *.so
 test
 valgrind-out.txt

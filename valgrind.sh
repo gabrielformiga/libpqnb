@@ -7,4 +7,4 @@ valgrind --leak-check=full \
          --track-origins=yes \
          --verbose \
          --log-file=valgrind-out.txt \
-         ./test
+         ./sample/test

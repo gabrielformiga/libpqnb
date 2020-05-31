@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include <assert.h>
 
-#define CONNINFO "postgresql:///yourdbname?host=/var/run/postgresql"
+#define CONNINFO "postgresql:///formiga?host=/var/run/postgresql"
 #define QUERY "SELECT * FROM version()"
 #define TEST_TIME_SEC 60
 #define NUM_CONNECTIONS 32
@@ -68,7 +68,8 @@ main(void)
   struct query_counter counter;
   time_t end;
 
-  pool = PQNB_pool_init(CONNINFO, NUM_CONNECTIONS);
+  const char conninfo[] = "postgresql:///formiga?host=/var/run/postgresql";
+  pool = PQNB_pool_init(conninfo, NUM_CONNECTIONS);
   assert(NULL != pool);
   info = PQNB_pool_get_info(pool, PQNB_INFO_EPOLL_FD);
   assert(NULL != info);
