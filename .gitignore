@@ -1,0 +1,4 @@
+.clangd
+*.o
+valgrind-out.txt
+compile_commands.json
