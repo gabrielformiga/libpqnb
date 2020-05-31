@@ -4,6 +4,7 @@
 #include "connection.h"
 #include "ring_buffer.h"
 
+#include <asm-generic/errno-base.h>
 #include <libpq-fe.h>
 
 #include <sys/epoll.h>
@@ -118,8 +119,11 @@ PQNB_pool_run(struct PQNB_pool *pool)
     {
       num_events = epoll_wait(pool->epoll_fd, events, PQNB_MAX_EVENTS, 0);
       if (-1 == num_events)
-        return -1;
-
+        {
+          if (EINTR == num_events)
+            continue;
+          return -1;
+        }
       for (int i = 0; i < num_events; i++)
         {
           struct PQNB_connection *conn = events[i].data.ptr;
@@ -181,6 +185,8 @@ PQNB_pool_run(struct PQNB_pool *pool)
               if (-1 == read(conn->reconnection_timerfd, &expired_count,
                              sizeof(expired_count)))
                 {
+                  if (EINTR == errno)
+                    continue;
                   if (EAGAIN != errno)
                     return -1;
                 }

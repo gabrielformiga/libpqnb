@@ -72,7 +72,7 @@ PQNB_connection_reset(struct PQNB_connection *conn)
       if (-1 == conn->reconnection_timerfd)
         return -1;
       struct epoll_event ev;
-      ev.events = EPOLLIN;
+      ev.events = EPOLLIN | EPOLLET;
       ev.data.ptr = conn;
       if (-1 == epoll_ctl(conn->pool->epoll_fd, EPOLL_CTL_ADD,
                           conn->reconnection_timerfd, &ev))
