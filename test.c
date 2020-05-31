@@ -1,6 +1,6 @@
 #include "pqnb.h"
 
-#include <postgresql/libpq-fe.h>
+#include <libpq-fe.h>
 
 #include <sys/epoll.h>
 #include <stdlib.h>
