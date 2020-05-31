@@ -20,9 +20,9 @@ info = PQNB_pool_get_info(pool, PQNB_INFO_EPOLL_FD);
 Run pool:  
 ```c
 PQNB_pool_run(pool);  
-This call doesn't block, you may select/epoll_wait the pool epoll_fd,  
+/* This call doesn't block, you may select/epoll_wait the pool epoll_fd */  
+/* see test.c */  
 ```  
-see test.c  
   
 Run a query:  
 ```c
