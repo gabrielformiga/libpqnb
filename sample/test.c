@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include <assert.h>
 
-#define CONNINFO "postgresql:///formiga?host=/var/run/postgresql"
+#define CONNINFO "postgresql:///yourdbname?host=/var/run/postgresql"
 #define QUERY "SELECT * FROM version()"
 #define TEST_TIME_SEC 60
 #define NUM_CONNECTIONS 32
