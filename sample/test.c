@@ -68,8 +68,7 @@ main(void)
   struct query_counter counter;
   time_t end;
 
-  const char conninfo[] = "postgresql:///formiga?host=/var/run/postgresql";
-  pool = PQNB_pool_init(conninfo, NUM_CONNECTIONS);
+  pool = PQNB_pool_init(CONNINFO, NUM_CONNECTIONS);
   assert(NULL != pool);
   info = PQNB_pool_get_info(pool, PQNB_INFO_EPOLL_FD);
   assert(NULL != info);
