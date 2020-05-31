@@ -17,4 +17,4 @@ ring_buffer.o: ring_buffer.c ring_buffer.h
 	$(CC) $(CFLAGS) -c ring_buffer.c
 .PHONY:
 clean:
-	$(RM) -fv *.o *.so test
+	$(RM) -fv *.o *.so test valgrind-out.txt
