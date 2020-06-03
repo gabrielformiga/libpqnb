@@ -2,28 +2,31 @@
 
 #include <libpq-fe.h>
 
-#include <sys/timerfd.h>
 #include <sys/epoll.h>
+#include <time.h>
 #include <stdlib.h>
 
 struct PQNB_connection *
 PQNB_connection_init(struct PQNB_pool *pool, const char *conninfo)
 {
+  struct timespec ts;
+
   PGconn *pg_conn = PQconnectStart(conninfo);
   if (NULL == pg_conn)
     return NULL;
   if (CONNECTION_BAD == PQstatus(pg_conn))
     goto cleanup;
   PQsetnonblocking(pg_conn, 1);
-
+  if (-1 == clock_gettime(CLOCK_MONOTONIC, &ts))
+    goto cleanup;
   struct PQNB_connection *conn = calloc(1, sizeof(*conn));
   if (NULL == conn)
     goto cleanup;
 
-  conn->reconnection_timerfd = -1;
+  conn->action = CONN_CONNECTING;
   conn->pool = pool;
   conn->pg_conn = pg_conn;
-  conn->action = CONN_CONNECTING;
+  conn->last_activity = ts.tv_sec;
 
   return conn;
 cleanup:
@@ -64,27 +67,6 @@ PQNB_connection_reset(struct PQNB_connection *conn)
   conn->readable = 0;
   conn->user_data = NULL;
   conn->query_callback = NULL;
-
-  if (-1 == conn->reconnection_timerfd)
-    {
-      conn->reconnection_timerfd = timerfd_create(CLOCK_MONOTONIC,
-                                                  TFD_NONBLOCK | TFD_CLOEXEC);
-      if (-1 == conn->reconnection_timerfd)
-        return -1;
-      struct epoll_event ev;
-      ev.events = EPOLLIN | EPOLLET;
-      ev.data.ptr = conn;
-      if (-1 == epoll_ctl(conn->pool->epoll_fd, EPOLL_CTL_ADD,
-                          conn->reconnection_timerfd, &ev))
-        return -1;
-      struct itimerspec ts;
-      ts.it_value.tv_sec = 10;
-      ts.it_value.tv_nsec = 0;
-      ts.it_interval.tv_sec = 10;
-      ts.it_interval.tv_nsec = 0;
-      if (-1 == timerfd_settime(conn->reconnection_timerfd, 0, &ts, NULL))
-        return -1;
-    }
 
   if (0 == PQresetStart(conn->pg_conn))
     return -1;

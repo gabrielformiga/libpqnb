@@ -10,11 +10,14 @@
  * epoll max events, stack allocated
  */
 #define PQNB_MAX_EVENTS 32
-
 /* 
  * queries buffer max entries
  */
 #define PQNB_MAX_QBUF 2048
+/*
+ * default timeout in seconds for connecting or reconnecting
+ */
+#define PQNB_DEFAULT_CONNECT_TIMEOUT 5
 
 struct PQNB_pool;
 /**

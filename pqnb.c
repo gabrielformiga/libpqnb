@@ -4,13 +4,11 @@
 #include "connection.h"
 #include "ring_buffer.h"
 
-#include <asm-generic/errno-base.h>
 #include <libpq-fe.h>
 
 #include <sys/epoll.h>
-#include <sys/timerfd.h>
 
-#include <unistd.h>
+#include <time.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -50,7 +48,7 @@ PQNB_pool_init(const char *conninfo, uint16_t num_connections)
   struct PQNB_pool *pool = calloc(1, sizeof(*pool));
   if (NULL == pool)
     return NULL;
-
+  pool->connect_timeout = PQNB_DEFAULT_CONNECT_TIMEOUT;
   pool->idle_connections = PQNB_ring_buffer_init(num_connections, 
                                                  sizeof(struct PQNB_pointer_wrapper));
   if (NULL == pool->idle_connections)
@@ -112,8 +110,12 @@ PQNB_pool_free(struct PQNB_pool *pool)
 int
 PQNB_pool_run(struct PQNB_pool *pool)
 {
+  struct timespec ts;
   struct epoll_event events[PQNB_MAX_EVENTS];
   int num_events = PQNB_MAX_EVENTS;
+
+  if (-1 == clock_gettime(CLOCK_MONOTONIC, &ts))
+    return -1;
 
   while (PQNB_MAX_EVENTS == num_events)
     {
@@ -129,6 +131,8 @@ PQNB_pool_run(struct PQNB_pool *pool)
           struct PQNB_connection *conn = events[i].data.ptr;
           if (NULL == conn)
             return -1;
+
+          conn->last_activity = ts.tv_sec;
 
           if ((EPOLLERR | EPOLLRDHUP) & events[i].events
               && CONN_RECONNECTING != conn->action)
@@ -178,24 +182,6 @@ PQNB_pool_run(struct PQNB_pool *pool)
 
           if (CONN_RECONNECTING == conn->action)
             {
-              uint64_t expired_count;
-              /*
-               * not the ideal solution, but works for now..
-               */
-              if (-1 == read(conn->reconnection_timerfd, &expired_count,
-                             sizeof(expired_count)))
-                {
-                  if (EINTR == errno)
-                    continue;
-                  if (EAGAIN != errno)
-                    return -1;
-                }
-              else
-                {
-                  PQNB_connection_reset(conn);
-                  continue;
-                }
-
               if (CONN_POLL_INIT == conn->poll
                   && conn->writable == 1)
                 PQresetPoll(conn->pg_conn);
@@ -213,11 +199,6 @@ PQNB_pool_run(struct PQNB_pool *pool)
                   conn->poll = CONN_POLL_OK;
                   conn->action = CONN_IDLE;
                   conn->readable = 0;
-                  if (-1 == close(conn->reconnection_timerfd))
-                    {
-                      return -1;
-                    }
-                  conn->reconnection_timerfd = -1;
                   break;
                 case PGRES_POLLING_READING:
                   conn->poll = CONN_POLL_READ;
@@ -288,6 +269,24 @@ PQNB_pool_run(struct PQNB_pool *pool)
             }
         }
     }
+
+  /* 
+   * TODO: queue or list of activities that may timeout
+   * instead of running all the array, probably instead
+   * of checking the current action we may create a
+   * timeout member on the connection
+   */
+  for (int i = 0; i < pool->num_connections; i++)
+    {
+      struct PQNB_connection *connection = pool->connections[i];
+      if ((connection->action == CONN_CONNECTING
+           || connection->action == CONN_RECONNECTING)
+          && ts.tv_sec - connection->last_activity > pool->connect_timeout)
+        PQNB_connection_reset(connection);
+    }
+  /*
+   * TODO: check pending queries for timeout
+   */
 
   return 0;
 }

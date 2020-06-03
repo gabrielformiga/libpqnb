@@ -2,8 +2,11 @@
 #define PQNB_INTERNAL_H
 
 #include "pqnb.h"
+#include "ring_buffer.h"
+
 #include <libpq-fe.h>
 #include <inttypes.h>
+#include <time.h>
 
 enum PQNB_connection_action
 {
@@ -41,9 +44,9 @@ struct PQNB_connection
    */
   void *user_data;
   /*
-   * currently used for reconnections
+   * last epoll activity
    */
-  int reconnection_timerfd;
+  time_t last_activity;
   /*
    * what the connection is currently doing
    */
@@ -80,6 +83,15 @@ struct PQNB_pool
    * no idle_connection and user requests a query
    */
   struct PQNB_ring_buffer *queries_buffer;
+  /*
+   * connection timeout in seconds for
+   * connecting or reconnecting
+   */
+  time_t connect_timeout;
+  /*
+   * default query timeout
+   */
+  time_t query_timeout;
   /*
    * epoll file descriptor
    */

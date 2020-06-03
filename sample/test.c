@@ -89,7 +89,7 @@ main(void)
     {
       if (end <= time(0))
         break;
-      res = epoll_wait(epoll_fd, evs, 1, -1);
+      res = epoll_wait(epoll_fd, evs, 1, 1000);
       if (res == -1)
         break;
       if (PQNB_pool_run(pool) == -1)
