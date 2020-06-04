@@ -1,4 +1,6 @@
+ifeq ($(PG_INCLUDEDIR),)
 PG_INCLUDEDIR = $(shell pg_config --includedir)
+endif
 
 CFLAGS +=-Wall -Wextra -Werror -I. -Iinclude -I$(PG_INCLUDEDIR) -O3 -flto -std=gnu11 -fPIC
 LDFLAGS +=-shared -O3 -flto
