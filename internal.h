@@ -14,7 +14,8 @@ enum PQNB_connection_action
   CONN_RECONNECTING,
   CONN_IDLE,
   CONN_FLUSHING,
-  CONN_QUERYING
+  CONN_QUERYING,
+  CONN_CANCELLING
 };
 
 enum PQNB_connection_poll
@@ -39,6 +40,10 @@ struct PQNB_connection
    * query callback, NULL after passing all results
    */
   PQNB_query_callback query_callback;
+  /*
+   * called when a query timeout occurs
+   */
+  PQNB_query_timeout_callback query_timeout_callback;
   /*
    * user data attached to query, NULL after passing all results
    */
@@ -117,9 +122,17 @@ struct PQNB_query_request
    */
   PQNB_query_callback query_callback;
   /*
+   * called when a query timeout occurs
+   */
+  PQNB_query_timeout_callback query_timeout_callback;
+  /*
    * user defined data
    */
   void *user_data;
+  /*
+   * time it was enqueued on the query buffer
+   */
+  time_t enqueued_at;
 };
 
 #endif /* ~PQNB_INTERNAL_H */

@@ -1,5 +1,7 @@
 #include "internal.h"
 
+#include "connection.h"
+
 #include <libpq-fe.h>
 
 #include <sys/epoll.h>
@@ -65,8 +67,7 @@ PQNB_connection_reset(struct PQNB_connection *conn)
   conn->action = CONN_RECONNECTING;
   conn->writable = 0;
   conn->readable = 0;
-  conn->user_data = NULL;
-  conn->query_callback = NULL;
+  PQNB_connection_reset_data(conn);
 
   if (0 == PQresetStart(conn->pg_conn))
     return -1;
@@ -120,4 +121,30 @@ PQNB_connection_query(struct PQNB_connection *conn,
   conn->query_callback = req->query_callback;
   conn->user_data = req->user_data;
   return 0;
+}
+
+int
+PQNB_connection_cancel_command(struct PQNB_connection *conn)
+{
+  if (conn->writable)
+    {
+      if (-1 == PQrequestCancel(conn->pg_conn))
+        return -1;
+      conn->action = CONN_IDLE;
+      conn->writable = 0;
+    }
+  else
+    {
+      conn->action = CONN_CANCELLING;
+    }
+  PQNB_connection_reset_data(conn);
+  return 0;
+}
+
+void
+PQNB_connection_reset_data(struct PQNB_connection *conn)
+{
+  conn->query_callback = NULL;
+  conn->query_timeout_callback = NULL;
+  conn->user_data = NULL;
 }

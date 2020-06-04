@@ -25,4 +25,10 @@ int
 PQNB_connection_query(struct PQNB_connection *conn,
                       struct PQNB_query_request *req);
 
+int
+PQNB_connection_cancel_command(struct PQNB_connection *conn);
+
+void
+PQNB_connection_reset_data(struct PQNB_connection *conn);
+
 #endif /* ~PQNB_CONNECTION_H */

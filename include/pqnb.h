@@ -18,6 +18,10 @@
  * default timeout in seconds for connecting or reconnecting
  */
 #define PQNB_DEFAULT_CONNECT_TIMEOUT 5
+/*
+ * query default timeout
+ */
+#define PQNB_DEFAULT_QUERY_TIMEOUT 5
 
 struct PQNB_pool;
 /**
@@ -55,15 +59,19 @@ union PQNB_pool_info
 const union PQNB_pool_info *
 PQNB_pool_get_info(struct PQNB_pool *pool, enum PQNB_pool_info_type type);
 /*
- * you must not call PQclear on PGResult, may be called multiple times
+ * don't call PQclear we always call this after returning from the callback,
+ * this function may be called multiple times
  */
 typedef void (*PQNB_query_callback)(PGresult *pg_result, void *user_data);
+typedef void (*PQNB_query_timeout_callback)(void *user_data);
 /**
  * returns 0 on success, -1 on error
  */
 int
 PQNB_pool_query(struct PQNB_pool *pool, const char *query,
                 PQNB_query_callback query_callback,
+                /* nullable if no query timeout is set on pool */
+                PQNB_query_timeout_callback query_timeout_callback,
                 const void *user_data);
 
 #endif /* END PQNB_H */

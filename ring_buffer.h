@@ -24,4 +24,10 @@ PQNB_ring_buffer_push(struct PQNB_ring_buffer *cb, const void *item);
 void*
 PQNB_ring_buffer_pop(struct PQNB_ring_buffer *cb);
 
+/*
+ * do not pops the value
+ */
+void*
+PQNB_ring_buffer_tail(struct PQNB_ring_buffer *cb);
+
 #endif /* ~PQNB_RING_BUFFER_H */

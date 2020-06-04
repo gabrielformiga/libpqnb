@@ -16,7 +16,7 @@ struct PQNB_ring_buffer
   void *tail;
 };
 
-struct PQNB_ring_buffer*
+struct PQNB_ring_buffer *
 PQNB_ring_buffer_init(size_t capacity, size_t sz)
 {
   struct PQNB_ring_buffer *ring_buffer = malloc(sizeof(*ring_buffer));
@@ -69,7 +69,7 @@ PQNB_ring_buffer_push(struct PQNB_ring_buffer *ring_buffer, const void *item)
   return 0;
 }
 
-void*
+void *
 PQNB_ring_buffer_pop(struct PQNB_ring_buffer *ring_buffer)
 {
   if(0 == ring_buffer->count)
@@ -80,4 +80,12 @@ PQNB_ring_buffer_pop(struct PQNB_ring_buffer *ring_buffer)
     ring_buffer->tail = ring_buffer->buffer;
   ring_buffer->count--;
   return item;
+}
+
+void *
+PQNB_ring_buffer_tail(struct PQNB_ring_buffer *ring_buffer)
+{
+  if (0 == ring_buffer->count)
+    return NULL;
+  return ring_buffer->tail;
 }

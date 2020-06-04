@@ -55,6 +55,16 @@ test_query_cb(PGresult *res, void *user_data)
     printf("query failed\n");
 }
 
+void
+test_query_timeout_callback(void *user_data)
+{
+  /*
+   * ignoring compiler warnings
+   */
+  (void) user_data;
+  printf("timeout\n");
+}
+
 /*
  * just querying for a minute
  */
@@ -82,7 +92,8 @@ main(void)
   counter.count = 0;
 
   /* filling query buffer */
-  while(-1 != PQNB_pool_query(pool, QUERY, test_query_cb, &counter));
+  while(-1 != PQNB_pool_query(pool, QUERY, test_query_cb, 
+                              test_query_timeout_callback, &counter));
 
   end = time(0) + TEST_TIME_SEC;
   for (;;)
@@ -95,7 +106,8 @@ main(void)
       if (PQNB_pool_run(pool) == -1)
         break;
       /* filling query buffer */
-      while(-1 != PQNB_pool_query(pool, QUERY, test_query_cb, &counter));
+      while(-1 != PQNB_pool_query(pool, QUERY, test_query_cb, 
+                                  test_query_timeout_callback, &counter));
     }
 
   PQNB_pool_free(pool);
