@@ -27,5 +27,6 @@ PQNB_pool_run(pool);
   
 Run a query:  
 ```c
-PQNB_pool_query(pool, "SELECT * FROM version()", query_callback, /*user_data*/ NULL);  
+PQNB_pool_query(pool, "SELECT * FROM version()", query_callback,  
+                query_timeout_callback, /*user_data*/ NULL);  
 ```  
