@@ -59,8 +59,8 @@ union PQNB_pool_info
 const union PQNB_pool_info *
 PQNB_pool_get_info(struct PQNB_pool *pool, enum PQNB_pool_info_type type);
 /*
- * don't call PQclear we always call this after returning from the callback,
- * this function may be called multiple times
+ * Don't call PQclear, we always call after calling this.
+ * This function may be called multiple times
  */
 typedef void (*PQNB_query_callback)(PGresult *pg_result, void *user_data);
 typedef void (*PQNB_query_timeout_callback)(void *user_data);

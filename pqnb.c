@@ -14,34 +14,6 @@
 #include <stdlib.h>
 #include <errno.h>
 
-/*
- * helper for wrapping a pointer
- */
-struct PQNB_pointer_wrapper { void *ptr; };
-
-/* pops a writable connection */
-static struct PQNB_connection *
-PQNB_pop_idle_connection(struct PQNB_pool *pool)
-{
-  struct PQNB_pointer_wrapper *w;
-
-  w = PQNB_ring_buffer_pop(pool->idle_connections);
-  if (NULL == w)
-    return NULL;
-  return (struct PQNB_connection*) w->ptr;
-}
-
-/*
- * pushes an idle connection in a pointer wrapper
- */
-static int
-PQNB_push_idle_connection(struct PQNB_pool *pool,
-                          struct PQNB_connection *conn)
-{
-  struct PQNB_pointer_wrapper w = { conn };
-  return PQNB_ring_buffer_push(pool->idle_connections, &w);
-}
-
 struct PQNB_pool *
 PQNB_pool_init(const char *conninfo, uint16_t num_connections)
 {
@@ -50,11 +22,6 @@ PQNB_pool_init(const char *conninfo, uint16_t num_connections)
     return NULL;
   pool->connect_timeout = PQNB_DEFAULT_CONNECT_TIMEOUT;
   pool->query_timeout = PQNB_DEFAULT_QUERY_TIMEOUT;
-  pool->idle_connections = PQNB_ring_buffer_init(num_connections, 
-                                                 sizeof(struct PQNB_pointer_wrapper));
-  if (NULL == pool->idle_connections)
-    goto cleanup;
-
   pool->queries_buffer = PQNB_ring_buffer_init(PQNB_MAX_QBUF, 
                                                sizeof(struct PQNB_query_request));
   if (NULL == pool->queries_buffer)
@@ -87,8 +54,6 @@ cleanup:
       for (int j = pool->num_connections; j >= 0; --j)
         PQNB_connection_free(pool->connections[j]);
     }
-  if (NULL != pool->idle_connections)
-    PQNB_ring_buffer_free(pool->idle_connections);
   if (NULL != pool->queries_buffer)
     PQNB_ring_buffer_free(pool->queries_buffer);
   if (NULL != pool->connections)
@@ -102,7 +67,6 @@ PQNB_pool_free(struct PQNB_pool *pool)
 {
   for (int i = 0; i < pool->num_connections; i++)
     PQNB_connection_free(pool->connections[i]);
-  PQNB_ring_buffer_free(pool->idle_connections);
   PQNB_ring_buffer_free(pool->queries_buffer);
   free(pool->connections);
   free(pool);
@@ -111,9 +75,12 @@ PQNB_pool_free(struct PQNB_pool *pool)
 int
 PQNB_pool_run(struct PQNB_pool *pool)
 {
+  struct PQNB_connection *conn;
   struct timespec ts;
   struct epoll_event events[PQNB_MAX_EVENTS];
-  int num_events = PQNB_MAX_EVENTS;
+  int num_events;
+
+  num_events = PQNB_MAX_EVENTS;
 
   if (-1 == clock_gettime(CLOCK_MONOTONIC, &ts))
     return -1;
@@ -129,7 +96,7 @@ PQNB_pool_run(struct PQNB_pool *pool)
         }
       for (int i = 0; i < num_events; i++)
         {
-          struct PQNB_connection *conn = events[i].data.ptr;
+          conn = events[i].data.ptr;
           if (NULL == conn)
             return -1;
 
@@ -164,6 +131,8 @@ PQNB_pool_run(struct PQNB_pool *pool)
                   conn->poll = CONN_POLL_OK;
                   conn->action = CONN_IDLE;
                   conn->readable = 0;
+                  PQNB_connecting_remove(pool->connecting_head,
+                                         pool->connecting_tail, conn);
                   break;
                 case PGRES_POLLING_READING:
                   conn->poll = CONN_POLL_READ;
@@ -200,6 +169,8 @@ PQNB_pool_run(struct PQNB_pool *pool)
                   conn->poll = CONN_POLL_OK;
                   conn->action = CONN_IDLE;
                   conn->readable = 0;
+                  PQNB_connecting_remove(pool->connecting_head,
+                                         pool->connecting_tail, conn);
                   break;
                 case PGRES_POLLING_READING:
                   conn->poll = CONN_POLL_READ;
@@ -242,9 +213,6 @@ PQNB_pool_run(struct PQNB_pool *pool)
                   PQNB_connection_reset(conn);
                   continue;
                 }
-              /*
-               * will not block
-               */
               if (0 == PQisBusy(conn->pg_conn))
                 {
                   PGresult *result = NULL;
@@ -255,6 +223,8 @@ PQNB_pool_run(struct PQNB_pool *pool)
                     }
                   conn->action = CONN_IDLE;
                   PQNB_connection_reset_data(conn);
+                  PQNB_querying_remove(pool->querying_head,
+                                       pool->querying_tail, conn);
                 }
             }
 
@@ -269,7 +239,8 @@ PQNB_pool_run(struct PQNB_pool *pool)
               && conn->writable)
             {
               if (PQNB_ring_buffer_empty(pool->queries_buffer))
-                PQNB_push_idle_connection(pool, conn);
+                PQNB_idle_push(pool->idle_head,
+                               pool->idle_tail, conn);
               else
                 PQNB_connection_query(conn, 
                                       PQNB_ring_buffer_pop(pool->queries_buffer));
@@ -277,49 +248,37 @@ PQNB_pool_run(struct PQNB_pool *pool)
         }
     }
 
-  /* 
-   * TODO: queue or list of activities that may timeout
-   * instead of running all the array, probably instead
-   * of checking the current action we may create a
-   * timeout member on the connection
-   */
-  for (int i = 0; i < pool->num_connections; i++)
+  time_t last_activity;
+  while (NULL != (conn = pool->connecting_head))
     {
-      struct PQNB_connection *conn = pool->connections[i];
-      if (NULL == conn)
-        return -1;
-      time_t last_activity = conn->last_activity;
-      if ((conn->action == CONN_CONNECTING
-           || conn->action == CONN_RECONNECTING)
-          && ts.tv_sec - last_activity > pool->connect_timeout)
-        PQNB_connection_reset(conn);
-      if (pool->query_timeout > 0
-          && (conn->action == CONN_QUERYING
-              || conn->action == CONN_FLUSHING)
-          && ts.tv_sec - last_activity > pool->query_timeout)
-        {
-          conn->query_timeout_callback(conn->user_data);
-          PQNB_connection_cancel_command(conn);
-        }
+      last_activity = conn->last_activity;
+      if (ts.tv_sec - last_activity < pool->connect_timeout)
+        break;
+      conn->last_activity = ts.tv_sec;
+      PQNB_connection_reset(conn);
     }
-  if (pool->query_timeout > 0
-      && PQNB_ring_buffer_not_empty(pool->queries_buffer))
+  while (NULL != (conn = pool->querying_head))
     {
-      struct PQNB_query_request *query_request;
-      while((query_request = 
-             PQNB_ring_buffer_tail(pool->queries_buffer))
-            != NULL)
-        {
-          if (ts.tv_sec - query_request->enqueued_at > pool->query_timeout)
-            {
-              query_request->query_timeout_callback(query_request->user_data);
-              PQNB_ring_buffer_pop(pool->queries_buffer);
-            }
-          else
-            break; /* no need to check the others */
-        }
+      last_activity = conn->last_activity;
+      if (ts.tv_sec - last_activity < pool->query_timeout)
+        break;
+      conn->last_activity = ts.tv_sec;
+      PQNB_connection_cancel_command(conn);
     }
-  
+
+    struct PQNB_query_request *query_request;
+    while((query_request = 
+           PQNB_ring_buffer_tail(pool->queries_buffer))
+          != NULL)
+      {
+        if (ts.tv_sec - query_request->enqueued_at > pool->query_timeout)
+          {
+            query_request->query_timeout_callback(query_request->user_data);
+            PQNB_ring_buffer_pop(pool->queries_buffer);
+          }
+        else
+          break;
+      }
   return 0;
 }
 
@@ -347,7 +306,7 @@ PQNB_pool_query(struct PQNB_pool *pool, const char *query,
   query_request.user_data = (void*) user_data;
   query_request.query_timeout_callback = query_timeout_callback;
 
-  conn = PQNB_pop_idle_connection(pool);
+  conn = pool->idle_head;
   if (NULL == conn)
     {
       if (pool->query_timeout > 0)
@@ -362,6 +321,8 @@ PQNB_pool_query(struct PQNB_pool *pool, const char *query,
   else
     {
       query_request.enqueued_at = 0;
+      PQNB_idle_remove(pool->idle_head,
+                       pool->idle_tail, conn);
       return PQNB_connection_query(conn, &query_request);
     }
 }
