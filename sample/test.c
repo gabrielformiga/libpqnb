@@ -58,7 +58,7 @@ test_query_cb(PGresult *res,
 
   if (NULL != error_msg)
     {
-      printf("len %ld %s", strlen(error_msg), error_msg);
+      printf("%s", error_msg);
       return;
     }
 

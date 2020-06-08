@@ -8,7 +8,7 @@ ifeq ($(PG_INCLUDEDIR),)
 PG_INCLUDEDIR = $(shell pg_config --includedir)
 endif
 
-valgrind: valgrind.sh sample/test
+valgrind: valgrind.sh test
 	sh ./valgrind.sh
 test: libpqnb.so sample/test.c
 	$(CC) $(TEST_CFLAGS) -o test sample/test.c $(TEST_LDFLAGS)
