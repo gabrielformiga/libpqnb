@@ -3,6 +3,8 @@
 #include <libpq-fe.h>
 
 #include <sys/epoll.h>
+#include <string.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <time.h>
 #include <stdio.h>
@@ -36,33 +38,38 @@ test_print_res(PGresult *res)
 #endif /* ~comment */
 
 void
-test_query_cb(PGresult *res, void *user_data)
+test_query_cb(PGresult *res,
+              void *user_data,
+              char *error_msg,
+              bool timeout)
 {
+  struct query_counter *queries_counter;
+
   /*
    * ignoring compiler warnings
    */
   (void) res;
-  assert(NULL != user_data);
+
+  if (timeout)
+    {
+      printf("timeout\n");
+      return;
+    }
+
+  if (NULL != error_msg)
+    {
+      printf("len %ld %s", strlen(error_msg), error_msg);
+      return;
+    }
+
   if (PGRES_TUPLES_OK == PQresultStatus(res))
     {
-#if 0
-      test_print_res(res);
-#endif /* ~comment */
-      struct query_counter *querie_counter = user_data;
-      querie_counter->count++;
+      assert(NULL != user_data);
+      queries_counter = user_data;
+      queries_counter->count++;
     }
   else
     printf("query failed\n");
-}
-
-void
-test_query_timeout_callback(void *user_data)
-{
-  /*
-   * ignoring compiler warnings
-   */
-  (void) user_data;
-  printf("timeout\n");
 }
 
 /*
@@ -92,8 +99,7 @@ main(void)
   counter.count = 0;
 
   /* filling query buffer */
-  while(-1 != PQNB_pool_query(pool, QUERY, test_query_cb, 
-                              test_query_timeout_callback, &counter));
+  while(-1 != PQNB_pool_query(pool, QUERY, test_query_cb, &counter));
 
   end = time(0) + TEST_TIME_SEC;
   for (;;)
@@ -106,8 +112,7 @@ main(void)
       if (PQNB_pool_run(pool) == -1)
         break;
       /* filling query buffer */
-      while(-1 != PQNB_pool_query(pool, QUERY, test_query_cb, 
-                                  test_query_timeout_callback, &counter));
+      while(-1 != PQNB_pool_query(pool, QUERY, test_query_cb, &counter));
     }
 
   PQNB_pool_free(pool);

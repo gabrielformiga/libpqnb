@@ -3,6 +3,7 @@
 
 #include <libpq-fe.h>
 
+#include <stdbool.h>
 #include <inttypes.h>
 #include <stddef.h>
 
@@ -62,16 +63,16 @@ PQNB_pool_get_info(struct PQNB_pool *pool, enum PQNB_pool_info_type type);
  * Don't call PQclear, we always call after calling this.
  * This function may be called multiple times
  */
-typedef void (*PQNB_query_callback)(PGresult *pg_result, void *user_data);
-typedef void (*PQNB_query_timeout_callback)(void *user_data);
+typedef void (*PQNB_query_cb)(PGresult *pg_result,
+                              void *user_data,
+                              char *error_msg,
+                              bool timeout);
 /**
  * returns 0 on success, -1 on error
  */
 int
 PQNB_pool_query(struct PQNB_pool *pool, const char *query,
-                PQNB_query_callback query_callback,
-                /* nullable if no query timeout is set on pool */
-                PQNB_query_timeout_callback query_timeout_callback,
+                PQNB_query_cb query_cb,
                 const void *user_data);
 
 #endif /* END PQNB_H */

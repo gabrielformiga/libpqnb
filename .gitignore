@@ -1,5 +1,5 @@
 .clangd
-*.o
+src/*.o
 sample/*.o
 *.so
 test

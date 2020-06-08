@@ -120,11 +120,7 @@ struct PQNB_connection
   /* 
    * query callback, NULL after passing all results
    */
-  PQNB_query_callback query_callback;
-  /*
-   * called when a query timeout occurs
-   */
-  PQNB_query_timeout_callback query_timeout_callback;
+  PQNB_query_cb query_cb;
   /*
    * user data attached to query, NULL after passing all results
    */
@@ -245,11 +241,7 @@ struct PQNB_query_request
    * user defined callback, we call it when we have
    * PGresult's available for reading
    */
-  PQNB_query_callback query_callback;
-  /*
-   * called when a query timeout occurs
-   */
-  PQNB_query_timeout_callback query_timeout_callback;
+  PQNB_query_cb query_cb;
   /*
    * user defined data
    */

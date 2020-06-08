@@ -65,24 +65,33 @@ int
 PQNB_connection_reset(struct PQNB_connection *conn)
 {
   if (CONN_IDLE == conn->action)
-    PQNB_idle_remove(conn->pool->idle_head,
-                     conn->pool->idle_tail,
-                     conn);
+    {
+      PQNB_idle_remove(conn->pool->idle_head,
+                       conn->pool->idle_tail,
+                       conn);
+    }
   else if (CONN_QUERYING == conn->action
            || CONN_FLUSHING == conn->action)
-    PQNB_querying_remove(conn->pool->querying_head,
-                         conn->pool->querying_tail,
-                         conn);
+    {
+      conn->query_cb(NULL, conn->user_data,
+                     PQerrorMessage(conn->pg_conn),
+                     false);
+      PQNB_querying_remove(conn->pool->querying_head,
+                           conn->pool->querying_tail,
+                           conn);
+    }
   else if (CONN_CONNECTING == conn->action
            || CONN_RECONNECTING == conn->action)
-    PQNB_connecting_remove(conn->pool->connecting_head,
-                           conn->pool->connecting_tail,
-                           conn);
+    {
+      PQNB_connecting_remove(conn->pool->connecting_head,
+                             conn->pool->connecting_tail,
+                             conn);
+    }
 
   conn->action = CONN_RECONNECTING;
   conn->writable = 0;
   conn->readable = 0;
-  PQNB_connection_reset_data(conn);
+  PQNB_connection_clear_data(conn);
 
   PQNB_connecting_push(conn->pool->connecting_head,
                        conn->pool->connecting_tail,
@@ -123,58 +132,31 @@ PQNB_connection_query(struct PQNB_connection *conn,
 {
   int res;
 
-  PQNB_querying_push(conn->pool->querying_head,
-                     conn->pool->querying_tail,
-                     conn);
-
   if (0 == PQsendQuery(conn->pg_conn, req->query))
-    {
-      PQNB_connection_reset(conn);
-      return -1;
-    }
+    goto query_error;
   res = PQNB_connection_write(conn);
   if (0 == res)
     conn->action = CONN_QUERYING;
   else if (1 == res)
     conn->action = CONN_FLUSHING;
-  else {
-      PQNB_connection_reset(conn);
-      return -1;
-  }
-  conn->query_callback = req->query_callback;
-  conn->user_data = req->user_data;
-
-  return 0;
-}
-
-int
-PQNB_connection_cancel_command(struct PQNB_connection *conn)
-{
-  PQNB_querying_remove(conn->pool->querying_head,
-                       conn->pool->querying_tail,
-                       conn);
-  if (conn->writable)
-    {
-      if (-1 == PQrequestCancel(conn->pg_conn))
-        {
-          PQNB_connection_reset(conn);
-          return -1;
-        }
-      conn->action = CONN_IDLE;
-      conn->writable = 0;
-    }
   else
-    {
-      conn->action = CONN_CANCELLING;
-    }
-  PQNB_connection_reset_data(conn);
+    goto query_error;
+  PQNB_querying_push(conn->pool->querying_head,
+                     conn->pool->querying_tail,
+                     conn);
+  conn->query_cb = req->query_cb;
+  conn->user_data = req->user_data;
   return 0;
+query_error:
+  req->query_cb(NULL, req->user_data,
+                PQerrorMessage(conn->pg_conn), false);
+  PQNB_connection_reset(conn);
+  return -1;
 }
 
 void
-PQNB_connection_reset_data(struct PQNB_connection *conn)
+PQNB_connection_clear_data(struct PQNB_connection *conn)
 {
-  conn->query_callback = NULL;
-  conn->query_timeout_callback = NULL;
+  conn->query_cb = NULL;
   conn->user_data = NULL;
 }
