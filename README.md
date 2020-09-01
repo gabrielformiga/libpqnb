@@ -6,11 +6,18 @@ Postgres non-blocking libpq connection pool
 make libpqnb.so
 ```  
 
+If you do not have pg_config installed:
+```
+make -DPG_INCLUDEDIR=/your/pg/include/dir libpqnb.so
+```  
+
+
 # Usage
 All dependencies needed are in:  
 ```c
 #include "pqnb.h"  
 ```  
+
 Initialize the connection pool:  
 ```c
 struct PQNB_pool *pool;  
@@ -18,6 +25,7 @@ const char conninfo[] = "postgresql:///yourdbname?host=/var/run/postgresql";
 uint16_t num_connections = 32;  
 pool = PQNB_pool_init(conninfo, num_connections);  
 ```  
+
 Get pool epoll file descriptor:  
 ```c
 const union PQNB_pool_info *info;  
