@@ -108,8 +108,12 @@ PQNB_pool_run(struct PQNB_pool *pool)
 
           conn->last_activity = now;
 
+          /** 
+           * if (re)connecting let the timeout reset
+           */
           if ((EPOLLERR | EPOLLRDHUP) & events[i].events
-              && CONN_RECONNECTING != conn->action)
+              && (CONN_RECONNECTING != conn->action
+                  && CONN_CONNECTING != conn->action))
             {
               PQNB_connection_reset(conn);
               continue;

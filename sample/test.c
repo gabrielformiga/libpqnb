@@ -13,7 +13,7 @@
 
 #define CONNINFO "postgresql:///yourdbname?host=/var/run/postgresql"
 #define QUERY "SELECT * FROM version()"
-#define TEST_TIME_SEC 60
+#define TEST_TIME_SEC 30
 #define NUM_CONNECTIONS 32
 
 struct query_counter { uint64_t count; };
