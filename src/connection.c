@@ -61,8 +61,8 @@ PQNB_connection_begin_polling(struct PQNB_connection *conn)
   return res;
 }
 
-int
-PQNB_connection_reset(struct PQNB_connection *conn)
+static void
+PQNB_connection_unqueue(struct PQNB_connection *conn)
 {
   if (CONN_IDLE == conn->action)
     {
@@ -73,9 +73,6 @@ PQNB_connection_reset(struct PQNB_connection *conn)
   else if (CONN_QUERYING == conn->action
            || CONN_FLUSHING == conn->action)
     {
-      conn->query_cb(NULL, conn->user_data,
-                     PQerrorMessage(conn->pg_conn),
-                     false);
       PQNB_querying_remove(conn->pool->querying_head,
                            conn->pool->querying_tail,
                            conn);
@@ -87,6 +84,12 @@ PQNB_connection_reset(struct PQNB_connection *conn)
                              conn->pool->connecting_tail,
                              conn);
     }
+}
+
+int
+PQNB_connection_reset(struct PQNB_connection *conn)
+{
+  PQNB_connection_unqueue(conn);
 
   conn->action = CONN_RECONNECTING;
   conn->writable = 0;
@@ -104,6 +107,14 @@ PQNB_connection_reset(struct PQNB_connection *conn)
   PQsetnonblocking(conn->pg_conn, 1);
 
   return PQNB_connection_begin_polling(conn);
+}
+
+void
+PQNB_connection_cb_err(struct PQNB_connection *conn)
+{
+  conn->query_cb(NULL, conn->user_data,
+                 PQerrorMessage(conn->pg_conn),
+                 false);
 }
 
 int
@@ -132,6 +143,9 @@ PQNB_connection_query(struct PQNB_connection *conn,
 {
   int res;
 
+  conn->query_cb = req->query_cb;
+  conn->user_data = req->user_data;
+
   if (0 == PQsendQuery(conn->pg_conn, req->query))
     goto query_error;
   res = PQNB_connection_write(conn);
@@ -144,12 +158,9 @@ PQNB_connection_query(struct PQNB_connection *conn,
   PQNB_querying_push(conn->pool->querying_head,
                      conn->pool->querying_tail,
                      conn);
-  conn->query_cb = req->query_cb;
-  conn->user_data = req->user_data;
   return 0;
 query_error:
-  req->query_cb(NULL, req->user_data,
-                PQerrorMessage(conn->pg_conn), false);
+  PQNB_connection_cb_err(conn);
   PQNB_connection_reset(conn);
   return -1;
 }

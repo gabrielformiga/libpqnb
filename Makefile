@@ -2,10 +2,10 @@ ifeq ($(PG_INCLUDEDIR),)
 PG_INCLUDEDIR = $(shell pg_config --includedir)
 endif
 
-CFLAGS +=-Wall -Wextra -Werror -I. -Iinclude -I$(PG_INCLUDEDIR) -O3 -flto -std=gnu11 -fPIC
+CFLAGS +=-Wall -Wextra -Werror -I. -Iinclude -I$(PG_INCLUDEDIR) -flto -std=gnu11 -fPIC -O3
 LDFLAGS +=-shared -O3 -flto
 
-TEST_CFLAGS +=-Wall -Wextra -Werror -I. -Iinclude -I$(PG_INCLUDEDIR) -O3 -flto -std=gnu11 -fPIC
+TEST_CFLAGS +=-Wall -Wextra -Werror -I. -Iinclude -I$(PG_INCLUDEDIR) -flto -std=gnu11 -fPIC -O3
 TEST_LDFLAGS +=-L. -lpqnb -lpq
 
 valgrind: valgrind.sh test
@@ -20,6 +20,7 @@ src/connection.o: src/connection.c src/connection.h src/internal.h
 	$(CC) $(CFLAGS) -o src/connection.o -c src/connection.c
 src/ring_buffer.o: src/ring_buffer.c src/ring_buffer.h
 	$(CC) $(CFLAGS) -o src/ring_buffer.o -c src/ring_buffer.c
+
 .PHONY:
 clean:
 	$(RM) -fv src/*.o sample/*.o *.so test valgrind-out.txt

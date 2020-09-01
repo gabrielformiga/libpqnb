@@ -115,6 +115,9 @@ PQNB_pool_run(struct PQNB_pool *pool)
               && (CONN_RECONNECTING != conn->action
                   && CONN_CONNECTING != conn->action))
             {
+              conn->query_cb(NULL, conn->user_data, 
+                             "Lost connection with postgres database\n",
+                             false);
               PQNB_connection_reset(conn);
               continue;
             }
@@ -204,6 +207,7 @@ PQNB_pool_run(struct PQNB_pool *pool)
                 {
                   if (-1 == PQNB_connection_read(conn))
                     {
+                      PQNB_connection_cb_err(conn);
                       PQNB_connection_reset(conn);
                       continue;
                     }
@@ -215,6 +219,7 @@ PQNB_pool_run(struct PQNB_pool *pool)
                     conn->action = CONN_QUERYING;
                   else if (-1 == res)
                     {
+                      PQNB_connection_cb_err(conn);
                       PQNB_connection_reset(conn);
                       continue;
                     }
@@ -226,6 +231,7 @@ PQNB_pool_run(struct PQNB_pool *pool)
             {
               if (-1 == PQNB_connection_read(conn))
                 {
+                  PQNB_connection_cb_err(conn);
                   PQNB_connection_reset(conn);
                   continue;
                 }
@@ -271,6 +277,12 @@ PQNB_pool_run(struct PQNB_pool *pool)
         break;
       next = conn->next_connecting;
       conn->last_activity = now;
+
+      /* if the connection has any assigned query, we must notify */
+      /* about the timeout */
+      if (NULL != conn->query_cb)
+        conn->query_cb(NULL, conn->user_data, NULL, true);
+
       PQNB_connection_reset(conn);
     }
 
@@ -281,15 +293,15 @@ PQNB_pool_run(struct PQNB_pool *pool)
         break;
       next = conn->next_querying;
       conn->last_activity = now;
+      conn->query_cb(NULL, conn->user_data, NULL, true);
       /*
        * libpq doesn't support non blocking query cancellation
        * so we reset the connection
        */
-      conn->action = CONN_CANCELLING;
-      conn->query_cb(NULL, conn->user_data, NULL, true);
       PQNB_connection_reset(conn);
     }
 
+  /* looping queries that doesn't have any assigned connection yet */
   while(NULL != 
         (query_request 
          = PQNB_ring_buffer_tail(pool->queries_buffer)))

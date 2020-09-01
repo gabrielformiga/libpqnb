@@ -28,4 +28,7 @@ PQNB_connection_query(struct PQNB_connection *conn,
 void
 PQNB_connection_clear_data(struct PQNB_connection *conn);
 
+void
+PQNB_connection_cb_err(struct PQNB_connection *conn);
+
 #endif /* ~PQNB_CONNECTION_H */
